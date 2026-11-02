@@ -1,10 +1,6 @@
-bin/
-obj/
-data/
-.run/
-*.user
-*.suo
-.vs/
-
-# Freebuff workspace metadata
-.freebuff/
+node_modules/
+build/
+dist/
+web/node_modules/
+web/build/
+web/dist/

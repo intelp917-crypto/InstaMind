@@ -1,0 +1,50 @@
+/* Stats page */
+
+.stats-grids {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.stats-section {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  padding: 22px 24px;
+}
+
+.ratio-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.stats-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.stat-strong {
+  font-weight: 700;
+  color: var(--text);
+  min-width: 64px;
+  text-align: center;
+}
+
+.ratio-bar {
+  flex: 1;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.07);
+  overflow: hidden;
+}
+
+.ratio-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #b7b7bd 0%, #6e6e73 60%, #1d1d1f 100%);
+  transition: width 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
+}

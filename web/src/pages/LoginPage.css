@@ -1,0 +1,168 @@
+/* ------------------------------------------------------------------
+   Login page — brushed silver hero in the Apple style
+------------------------------------------------------------------ */
+
+.login-page {
+  min-height: 100vh;
+  position: relative;
+  overflow: hidden;
+}
+
+.login-aurora {
+  position: absolute;
+  inset: -30%;
+  background:
+    radial-gradient(42% 38% at 68% 18%, rgba(160, 168, 180, 0.32) 0%, transparent 70%),
+    radial-gradient(36% 30% at 24% 74%, rgba(120, 128, 140, 0.24) 0%, transparent 70%),
+    radial-gradient(50% 44% at 52% 46%, rgba(200, 203, 209, 0.5) 0%, transparent 78%);
+  filter: blur(46px);
+  pointer-events: none;
+  animation: login-drift 26s ease-in-out infinite alternate;
+}
+
+@keyframes login-drift {
+  from {
+    transform: translate3d(-2%, -1.5%, 0) scale(1);
+  }
+  to {
+    transform: translate3d(2.5%, 2%, 0) scale(1.06);
+  }
+}
+
+.login-main {
+  position: relative;
+  max-width: 560px;
+  margin: 0 auto;
+  padding: 72px 22px 40px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.login-brand {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  font-size: 21px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--text);
+  margin-bottom: 46px;
+}
+
+.login-brand-mark {
+  width: 36px;
+  height: 36px;
+  border-radius: 11px;
+  background: var(--silver-metal);
+  border: 1px solid var(--border);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.95), 0 2px 6px rgba(0, 0, 0, 0.08);
+  display: grid;
+  place-items: center;
+}
+
+.login-headline {
+  text-align: center;
+  font-size: clamp(26px, 5vw, 40px);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.5;
+  margin: 0 0 8px;
+}
+
+.login-headline-sub {
+  display: block;
+  font-size: clamp(14px, 2.4vw, 17px);
+  font-weight: 400;
+  color: var(--text-secondary);
+  margin-top: 10px;
+  letter-spacing: -0.01em;
+}
+
+.login-card {
+  margin-top: 42px;
+  width: 100%;
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  box-shadow: var(--shadow-card);
+  padding: 28px 26px 24px;
+}
+
+.login-ig-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 11px;
+  padding: 13px 20px;
+  border-radius: 999px;
+  border: none;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 700;
+  font-family: inherit;
+  color: #ffffff;
+  background: linear-gradient(180deg, #35343a 0%, #1d1d1f 60%);
+  box-shadow: 0 8px 22px -8px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.14);
+  transition: transform 0.14s ease, filter 0.2s ease;
+}
+
+.login-ig-btn:hover:not(:disabled) {
+  filter: brightness(1.12);
+}
+
+.login-ig-btn:active:not(:disabled) {
+  transform: scale(0.985);
+}
+
+.login-ig-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.login-error {
+  margin-top: 14px;
+  background: var(--danger-bg);
+  color: var(--danger);
+  font-size: 12.5px;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+}
+
+.login-points {
+  list-style: none;
+  margin: 24px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  line-height: 1.9;
+}
+
+.login-points b {
+  color: var(--text);
+  font-weight: 700;
+}
+
+.login-footer {
+  margin-top: 34px;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.login-admin-link {
+  color: var(--text-secondary);
+  border-bottom: 1px solid transparent;
+}
+
+.login-admin-link:hover {
+  border-bottom-color: var(--text-secondary);
+}
