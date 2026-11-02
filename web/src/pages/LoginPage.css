@@ -132,6 +132,114 @@
   border-radius: var(--radius-sm);
 }
 
+.login-or {
+  margin: 18px 0 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.login-or::before,
+.login-or::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: rgba(128, 132, 142, 0.25);
+}
+
+.login-demo-btn {
+  margin-top: 16px;
+  width: 100%;
+  border: 1px dashed var(--border-strong);
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 13px;
+  padding: 11px 16px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.login-demo-btn:hover {
+  color: var(--text);
+  border-color: var(--text-tertiary);
+}
+
+.login-demo-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.login-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  background: rgba(128, 132, 142, 0.1);
+  border-radius: var(--radius-sm);
+  padding: 4px;
+  gap: 4px;
+}
+
+.login-tabs button {
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 13px;
+  padding: 8px 0;
+  border-radius: calc(var(--radius-sm) - 2px);
+  cursor: pointer;
+}
+
+.login-tabs button.active {
+  background: var(--surface, #fff);
+  color: var(--text);
+  font-weight: 700;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.login-form input {
+  background: rgba(128, 132, 142, 0.07);
+  border: 1px solid rgba(128, 132, 142, 0.2);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  padding: 11px 14px;
+  font: inherit;
+  font-size: 13.5px;
+}
+
+.login-form input:focus {
+  outline: none;
+  border-color: rgba(120, 125, 140, 0.5);
+}
+
+.login-hint {
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.login-footnote {
+  margin-top: 18px;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  line-height: 1.9;
+}
+
+.login-footnote a {
+  color: var(--text);
+  font-weight: 700;
+}
+
 .login-points {
   list-style: none;
   margin: 24px 0 0;

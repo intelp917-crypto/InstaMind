@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import Stepper from '../bits/Stepper/Stepper';
 import AnimatedList from '../bits/AnimatedList/AnimatedList';
 import SpotlightCard from '../bits/SpotlightCard/SpotlightCard';
-import { api, type AdminMeta, type AdminTenant } from '../api';
+import { api, type AdminMeta, type AdminOrder, type AdminTenant } from '../api';
 import './AdminPage.css';
 import { Toggle } from './AssistantPage';
 
@@ -106,7 +106,7 @@ function AdminPanel({
   onSignedOut: () => void;
   setups: { meta: boolean; provider: boolean; tenantCount: number } | null;
 }) {
-  const [tab, setTab] = useState<'setup' | 'tenants' | 'global'>('setup');
+  const [tab, setTab] = useState<'setup' | 'tenants' | 'orders' | 'global'>('setup');
 
   // If setup is incomplete, force the setup tab.
   useEffect(() => {
@@ -131,6 +131,7 @@ function AdminPanel({
           [
             ['setup', 'راه‌اندازی', '✦'],
             ['tenants', 'مشتریان', '❂'],
+            ['orders', 'سفارش اشتراک', '▦'],
             ['global', 'آمار کل', '◠']
           ] as Array<[typeof tab, string, string]>
         ).map(([id, label, icon]) => (
@@ -152,6 +153,7 @@ function AdminPanel({
       <main className="im-content">
         {tab === 'setup' && <SetupSection setups={setups} />}
         {tab === 'tenants' && <TenantsSection />}
+        {tab === 'orders' && <OrdersSection />}
         {tab === 'global' && <GlobalSection />}
       </main>
     </div>
@@ -481,6 +483,75 @@ function TenantRow({
         </div>
       </div>
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+
+const ADMIN_ORDER_STATUS: Record<AdminOrder['status'], string> = {
+  pending: 'در انتظار پرداخت',
+  active: 'فعال',
+  rejected: 'رد شده',
+  cancelled: 'لغو شده'
+};
+
+function OrdersSection() {
+  const [orders, setOrders] = useState<AdminOrder[]>([]);
+  const [loaded, setLoaded] = useState(false);
+
+  const load = () => {
+    api<{ orders: AdminOrder[] }>('/api/admin/orders')
+      .then(({ orders: list }) => {
+        setOrders(list);
+        setLoaded(true);
+      })
+      .catch(() => setLoaded(true));
+  };
+
+  useEffect(load, []);
+
+  const decide = async (order: AdminOrder, status: 'active' | 'rejected') => {
+    await api(`/api/admin/orders/${order.id}/decide`, { method: 'POST', body: { status } });
+    load();
+  };
+
+  return (
+    <>
+      <div className="im-page-head">
+        <h1>سفارش‌های اشتراک</h1>
+        <p>سفارش‌های ثبت‌شدهٔ مشتری‌ها؛ پرداخت را در حساب بانکی/درگاه چک کن و تأیید یا رد کن.</p>
+      </div>
+
+      {loaded && orders.length === 0 && <div className="im-empty">سفارشی ثبت نشده است.</div>}
+
+      <div className="admin-tenants-wrap">
+        {orders.map(o => (
+          <div key={o.id} className="im-card admin-tenant-row">
+            <div className="tenant-main">
+              <div>
+                <div className="global-user">
+                  {o.planName} — <span style={{ fontWeight: 500 }} dir="ltr">{o.userEmail ?? '?'}</span>
+                </div>
+                <div className="global-stat">
+                  {o.amount.toLocaleString('fa-IR')} تومان / ماه · {new Date(o.createdAt).toLocaleDateString('fa-IR')}
+                </div>
+              </div>
+              <span className={`order-status ${o.status}`}>{ADMIN_ORDER_STATUS[o.status]}</span>
+            </div>
+            {o.status === 'pending' && (
+              <div className="tenant-controls" style={{ marginTop: 12 }}>
+                <button className="im-btn small primary" onClick={() => decide(o, 'active')}>
+                  تأیید و فعال‌سازی
+                </button>
+                <button className="im-btn small danger" onClick={() => decide(o, 'rejected')}>
+                  رد
+                </button>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </>
   );
 }
 

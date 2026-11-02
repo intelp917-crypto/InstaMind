@@ -70,6 +70,11 @@ export default function AppShell({ user, onSignedOut }: Props) {
           </button>
         ))}
 
+        <a className="im-nav-item" href="/dashboard">
+          <span aria-hidden="true">▣</span>
+          <span>داشبورد حساب</span>
+        </a>
+
         <div className="im-sidebar-footer">
           <div>
             <strong>@{me.username}</strong>

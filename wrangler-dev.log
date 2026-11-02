@@ -1,0 +1,45 @@
+
+ ⛅️ wrangler 4.156.1
+────────────────────
+Using secrets defined in .dev.vars
+Your Worker has access to the following bindings:
+Binding                                                 Resource                  Mode
+env.DB (instamind)                                      D1 Database               local
+env.ASSETS                                              Assets                    local
+env.APP_ORIGIN ("http://localhost:8787")                Environment Variable      local
+env.ADMIN_KEY ("(hidden)")                              Environment Variable      local
+env.ENCRYPTION_KEY ("(hidden)")                         Environment Variable      local
+env.SESSION_SECRET ("(hidden)")                         Environment Variable      local
+env.GOOGLE_CLIENT_ID ("(hidden)")                       Environment Variable      local
+env.GOOGLE_CLIENT_SECRET ("(hidden)")                   Environment Variable      local
+
+⎔ Starting local server...
+[wrangler:info] Ready on http://127.0.0.1:8787
+[wrangler:info] GET /api/health 200 OK (97ms)
+[wrangler:info] POST /api/auth/register 200 OK (129ms)
+[wrangler:info] POST /api/dev/demo-login 200 OK (40ms)
+[wrangler:info] GET / 200 OK (16ms)
+[wrangler:info] GET /assets/index-Dd_94s_o.js 200 OK (10ms)
+[wrangler:info] GET /assets/index-BRicI8wn.css 200 OK (10ms)
+[wrangler:info] GET /api/me 200 OK (15ms)
+[wrangler:info] GET /api/account/me 401 Unauthorized (19ms)
+[wrangler:info] GET /api/setup/status 200 OK (12ms)
+[wrangler:info] GET /favicon.svg 200 OK (3ms)
+[wrangler:info] GET /oauth/instagram/start 302 Found (22ms)
+[wrangler:info] GET /api/me 200 OK (6ms)
+[wrangler:info] GET /api/account/me 401 Unauthorized (5ms)
+[wrangler:info] GET /api/setup/status 200 OK (16ms)
+[wrangler:info] GET /favicon.svg 304 Not Modified (3ms)
+[wrangler:info] GET / 200 OK (15ms)
+[wrangler:info] GET / 304 Not Modified (3ms)
+[wrangler:info] GET /assets/index-Dd_94s_o.js 304 Not Modified (3ms)
+[wrangler:info] GET /assets/index-BRicI8wn.css 304 Not Modified (4ms)
+[wrangler:info] GET /api/me 200 OK (12ms)
+[wrangler:info] GET /api/account/me 401 Unauthorized (4ms)
+[wrangler:info] GET /api/setup/status 200 OK (14ms)
+[wrangler:info] GET / 304 Not Modified (6ms)
+[wrangler:info] GET /assets/index-Dd_94s_o.js 304 Not Modified (2ms)
+[wrangler:info] GET /assets/index-BRicI8wn.css 304 Not Modified (6ms)
+[wrangler:info] GET /api/account/me 401 Unauthorized (7ms)
+[wrangler:info] GET /api/me 200 OK (5ms)
+[wrangler:info] GET /api/setup/status 200 OK (11ms)

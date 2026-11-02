@@ -1,0 +1,295 @@
+/*
+  Account dashboard: status cards, tier list (999K-9M Toman/month) and orders.
+ */
+
+.dash-page {
+  min-height: 100vh;
+  background: var(--bg, #f5f5f7);
+  color: var(--text);
+}
+
+.dash-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 28px;
+}
+
+.dash-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 800;
+  font-size: 15px;
+}
+
+.dash-mark {
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.85);
+  color: #fff;
+}
+
+.dash-user {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.dash-email {
+  color: var(--text-secondary);
+  font-size: 12.5px;
+}
+
+.dash-main {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 10px 28px 80px;
+}
+
+.dash-hello {
+  font-size: 26px;
+  margin: 18px 0 4px;
+}
+
+.dash-sub {
+  color: var(--text-secondary);
+  font-size: 13.5px;
+  margin: 0 0 22px;
+}
+
+.dash-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 14px;
+}
+
+.dash-card {
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dash-card-label {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.dash-card-value {
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.dash-card-value.muted {
+  color: var(--text-tertiary);
+}
+
+.dash-card-hint {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.8;
+}
+
+.dash-note {
+  margin-top: 16px;
+  background: rgba(48, 120, 255, 0.08);
+  color: #2453a6;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 12.5px;
+}
+
+.dash-section-head {
+  margin: 38px 0 14px;
+}
+
+.dash-section-head h2 {
+  font-size: 20px;
+  margin: 0 0 4px;
+}
+
+.dash-section-head p {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+/* tier list */
+
+.dash-tiers {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 14px;
+  align-items: start;
+}
+
+.tier-card {
+  position: relative;
+  padding: 20px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border: 1px solid rgba(128, 132, 142, 0.18);
+}
+
+.tier-card.popular {
+  border-color: rgba(48, 120, 255, 0.45);
+  box-shadow: 0 6px 24px rgba(48, 120, 255, 0.12);
+}
+
+.tier-badge {
+  position: absolute;
+  top: -10px;
+  left: 14px;
+  background: #2f6bff;
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: 99px;
+}
+
+.tier-name {
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.tier-tag {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.tier-price {
+  font-size: 20px;
+  font-weight: 900;
+  margin-top: 4px;
+}
+
+.tier-price span {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-tertiary);
+}
+
+.tier-aimo {
+  font-size: 11.5px;
+  color: var(--text-tertiary);
+}
+
+.tier-features {
+  list-style: none;
+  padding: 0;
+  margin: 6px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12.3px;
+  color: var(--text-secondary);
+  line-height: 1.7;
+  flex: 1;
+}
+
+.tier-features li::before {
+  content: '✓ ';
+  color: #2f6bff;
+  font-weight: 800;
+}
+
+.tier-buy {
+  width: 100%;
+}
+
+.tier-support {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  text-align: center;
+}
+
+.dash-plans-note {
+  margin-top: 14px;
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+/* profile */
+
+.dash-profile-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 14px;
+}
+
+.dash-profile-grid .im-input {
+  background: rgba(128, 132, 142, 0.07);
+  border: 1px solid rgba(128, 132, 142, 0.2);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  font: inherit;
+  font-size: 13px;
+}
+
+.dash-profile-grid .im-input:focus {
+  outline: none;
+  border-color: rgba(120, 125, 140, 0.5);
+}
+
+/* orders */
+
+.dash-orders-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.dash-order {
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.dash-order-plan {
+  font-weight: 800;
+  min-width: 110px;
+}
+
+.dash-order-meta {
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  flex: 1;
+}
+
+.dash-order-status {
+  font-size: 12px;
+  padding: 4px 12px;
+  border-radius: 99px;
+  background: rgba(128, 132, 142, 0.14);
+}
+
+.dash-order-status.active {
+  background: rgba(48, 150, 80, 0.14);
+  color: #1d7a3e;
+}
+
+.dash-order-status.pending {
+  background: rgba(214, 143, 0, 0.14);
+  color: #966000;
+}
+
+.dash-order-status.rejected,
+.dash-order-status.cancelled {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+@media (max-width: 720px) {
+  .dash-main {
+    padding: 10px 16px 60px;
+  }
+}

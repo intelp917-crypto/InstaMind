@@ -5,7 +5,8 @@ export function defaultTenantSettings(): TenantSettings {
   return {
     persona: defaultPersona(),
     guardrails: defaultGuardrails(),
-    knowledge: []
+    knowledge: [],
+    qaTraining: []
   };
 }
 

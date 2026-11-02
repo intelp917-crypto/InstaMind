@@ -114,6 +114,30 @@
   text-align: center;
 }
 
+.order-status {
+  font-size: 12px;
+  padding: 4px 12px;
+  border-radius: 99px;
+  background: rgba(128, 132, 142, 0.14);
+  white-space: nowrap;
+}
+
+.order-status.active {
+  background: rgba(48, 150, 80, 0.14);
+  color: #1d7a3e;
+}
+
+.order-status.pending {
+  background: rgba(214, 143, 0, 0.14);
+  color: #966000;
+}
+
+.order-status.rejected,
+.order-status.cancelled {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
 .global-row {
   display: flex;
   align-items: center;

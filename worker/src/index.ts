@@ -7,10 +7,13 @@ import { normalizeTenantSettings } from './settings';
 import {
   clearAdminSession,
   clearTenantSession,
+  clearAllSessions,
   createAdminSession,
   createTenantSession,
+  createUserSession,
   readAdminSession,
-  readTenantSession
+  readTenantSession,
+  readUserSession
 } from './sessions';
 import {
   buildAuthorizeUrl,
@@ -24,6 +27,8 @@ import { openJson, sealJson, sha256Hex, randomToken, timingSafeHashEquals, today
 import { handleIncomingWebhook, parseWebhookMessages, getTenantToken } from './webhook';
 import { generateReply } from './ai';
 import { buildSystemPrompt } from './prompt';
+import { hashPassword, verifyPassword } from './password';
+import { planById, PLANS } from './plans';
 
 const app = new Hono<AppEnv>();
 
@@ -53,6 +58,34 @@ function todayKey(): string {
 }
 
 // ---------------------------------------------------------------------
+// @@@ Rate limiting (per isolate; first line of defense vs. brute force)
+// ---------------------------------------------------------------------
+
+const rateBuckets = new Map<string, number[]>();
+
+function rateLimitOk(ip: string, bucket: string, max: number, windowMs: number): boolean {
+  const key = `${bucket}:${ip}`;
+  const now = Date.now();
+  const hits = (rateBuckets.get(key) ?? []).filter(t => now - t < windowMs);
+  if (hits.length >= max) {
+    rateBuckets.set(key, hits);
+    return false;
+  }
+  hits.push(now);
+  rateBuckets.set(key, hits);
+  if (rateBuckets.size > 5_000) {
+    for (const [k, v] of rateBuckets) {
+      if (v.every(t => now - t >= windowMs)) rateBuckets.delete(k);
+    }
+  }
+  return true;
+}
+
+function clientIp(c: { req: { header(name: string): string | undefined } }): string {
+  return c.req.header('cf-connecting-ip') ?? 'local';
+}
+
+// ---------------------------------------------------------------------
 // @@@ PUBLIC
 // ---------------------------------------------------------------------
 
@@ -66,9 +99,282 @@ app.get('/api/setup/status', async c => {
     metaConfigured: Boolean(meta?.appId),
     providerConfigured: Boolean(provider?.apiKey || envProvider?.apiKey),
     environmentProviderPresent: Boolean(envProvider?.apiKey),
+    googleConfigured: Boolean(c.env.GOOGLE_CLIENT_ID && c.env.GOOGLE_CLIENT_SECRET),
     tenantCount: tenants.length,
     redirectUri: meta ? resolveRedirectUri(originOf(c), meta.redirectUri) : null
   });
+});
+
+// ---------------------------------------------------------------------
+// @@@ DEV-ONLY DEMO — tour the whole product locally with zero setup.
+// Refuses any https origin, so it is dead code in production.
+// ---------------------------------------------------------------------
+
+app.post('/api/dev/demo-login', async c => {
+  const origin = originOf(c);
+  if (origin.startsWith('https://')) {
+    return c.json({ ok: false, error: 'ورود دمو فقط روی محیط development کار می‌کند.' }, 404);
+  }
+
+  // Seed (once) a demo tenant bound to a fake Instagram page.
+  await db.upsertTenant(c.env, {
+    igUserId: 'demo-page-0001',
+    username: 'demo.page',
+    tokenEncrypted: '',
+    tokenExpiresAt: null,
+    subscribed: false,
+    userId: null
+  });
+  const tenant = await db.findTenantByIgId(c.env, 'demo-page-0001');
+  if (!tenant) return c.json({ ok: false, error: 'ساخت محیط دمو ناموفق بود.' }, 500);
+
+  // If the visitor is signed into an account, link the demo page to it so the
+  // dashboard reflects the connection.
+  const account = await readUserSession(c);
+  if (account) {
+    await c.env.DB.prepare('UPDATE tenants SET user_id = ? WHERE id = ? AND user_id IS NULL')
+      .bind(account.uid, tenant.id)
+      .run();
+  }
+
+  await createTenantSession(c, { id: tenant.id, igUserId: tenant.ig_user_id, username: tenant.username });
+  return c.json({ ok: true });
+});
+
+// ---------------------------------------------------------------------
+// @@@ ACCOUNTS — Google / email-password sign-in for SaaS customers
+// ---------------------------------------------------------------------
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+app.post('/api/auth/register', async c => {
+  if (!rateLimitOk(clientIp(c), 'register', 5, 30 * 60_000)) {
+    return c.json({ ok: false, error: 'تعداد ثبت‌نام از این IP زیاد است؛ بعداً تلاش کنید.' }, 429);
+  }
+  const body = (await c.req.json().catch(() => ({}))) as { name?: string; email?: string; password?: string };
+  const name = (body.name ?? '').trim().slice(0, 80);
+  const email = (body.email ?? '').trim().toLowerCase();
+  const password = body.password ?? '';
+
+  if (!EMAIL_RE.test(email)) return c.json({ ok: false, error: 'ایمیل معتبر نیست.' }, 400);
+  if (password.length < 8) return c.json({ ok: false, error: 'رمز عبور باید دستکم ۸ کاراکتر باشد.' }, 400);
+
+  const existing = await db.findUserByEmail(c.env, email);
+  if (existing?.password_hash) {
+    return c.json({ ok: false, error: 'با این ایمیل قبلاً حساب ساخته شده؛ وارد شوید.' }, 409);
+  }
+  const passwordHash = await hashPassword(password);
+  const user = existing
+    ? (await db.setUserPassword(c.env, existing.id, passwordHash), await db.findUserById(c.env, existing.id))
+    : await db.upsertAccount(c.env, { email, name, passwordHash, googleSub: null, avatarUrl: '' });
+  if (!user) return c.json({ ok: false, error: 'ساخت حساب ناموفق بود.' }, 500);
+
+  await createUserSession(c, { id: user.id, email: user.email, name: user.name || name });
+  return c.json({ ok: true });
+});
+
+app.post('/api/auth/login', async c => {
+  if (!rateLimitOk(clientIp(c), 'login', 10, 5 * 60_000)) {
+    return c.json({ ok: false, error: 'تعداد تلاش ورود زیاد است؛ چند دقیقه دیگر تلاش کنید.' }, 429);
+  }
+  const body = (await c.req.json().catch(() => ({}))) as { email?: string; password?: string };
+  const email = (body.email ?? '').trim().toLowerCase();
+  const password = body.password ?? '';
+
+  const user = await db.findUserByEmail(c.env, email);
+  const stored = user?.password_hash ?? '';
+  // Always verify something so timing cannot trivially distinguish missing user vs. wrong password.
+  const ok = user && stored ? await verifyPassword(password, stored) : false;
+  if (!ok || !user) return c.json({ ok: false, error: 'ایمیل یا رمز عبور درست نیست.' }, 401);
+
+  await db.upsertAccount(c.env, { email: user.email, name: '', passwordHash: null, googleSub: null, avatarUrl: '' });
+  await createUserSession(c, { id: user.id, email: user.email, name: user.name });
+  return c.json({ ok: true });
+});
+
+app.post('/api/auth/logout', async c => {
+  await clearAllSessions(c);
+  return c.json({ ok: true });
+});
+
+// Plans are public: anyone may see the tier list before signing up.
+app.get('/api/plans', c => c.json({ ok: true, plans: PLANS }));
+
+app.use('/api/account/*', async (c, next) => {
+  const session = await readUserSession(c);
+  if (!session) return c.json({ ok: false, error: 'ورود به حساب لازم است.' }, 401);
+  c.set('userSession', session);
+  await next();
+});
+
+app.get('/api/account/me', async c => {
+  const session = c.get('userSession');
+  const user = await db.findUserById(c.env, session.uid);
+  if (!user) return c.json({ ok: false, error: 'حساب پیدا نشد؛ دوباره وارد شوید.' }, 401);
+
+  const insta = await db.tenantOfUser(c.env, user.id);
+  const orders = await db.listOrdersOfUser(c.env, user.id);
+  const plan = planById(user.plan_id);
+
+  let usage: {
+    repliesToday: number;
+    tokensToday: number;
+    repliesTotal: number;
+    tokensTotal: number;
+    dailyReplyLimit: number;
+    autoReply: boolean;
+  } | null = null;
+  if (insta) {
+    usage = {
+      repliesToday: insta.usage_date === todayKey() ? insta.replies_today : 0,
+      tokensToday: insta.usage_date === todayKey() ? insta.tokens_today : 0,
+      repliesTotal: insta.replies_total,
+      tokensTotal: insta.tokens_total,
+      dailyReplyLimit: insta.daily_reply_limit,
+      autoReply: insta.auto_reply === 1
+    };
+  }
+
+  return c.json({
+    ok: true,
+    user: {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      avatarUrl: user.avatar_url,
+      planId: user.plan_id,
+      planName: plan?.name ?? null,
+      googleLinked: Boolean(user.google_sub),
+      createdAt: user.created_at
+    },
+    instagram: insta
+      ? { connected: true, username: insta.username, igUserId: insta.ig_user_id, autoReply: insta.auto_reply === 1 }
+      : { connected: false },
+    usage,
+    orders: orders.map(o => ({
+      id: o.id,
+      planId: o.plan_id,
+      status: o.status,
+      amount: o.amount,
+      period: o.period,
+      createdAt: o.created_at,
+      decidedAt: o.decided_at
+    }))
+  });
+});
+
+app.post('/api/account/subscribe', async c => {
+  const session = c.get('userSession');
+  const body = (await c.req.json().catch(() => ({}))) as { planId?: string };
+  const plan = planById(body.planId);
+  if (!plan) return c.json({ ok: false, error: 'پلن نامعتبر است.' }, 400);
+
+  // One open order per plan: re-request reuses the pending one instead of stacking duplicates.
+  const pending = await db.findPendingOrder(c.env, session.uid, plan.id);
+  const order = pending ?? (await db.createOrder(c.env, session.uid, plan.id));
+  return c.json({
+    ok: true,
+    order: { id: order.id, planId: order.plan_id, status: order.status, amount: order.amount, createdAt: order.created_at }
+  });
+});
+
+app.post('/api/account/profile', async c => {
+  const session = c.get('userSession');
+  const body = (await c.req.json().catch(() => ({}))) as { name?: string };
+  const name = (body.name ?? '').trim().slice(0, 80);
+  if (!name) return c.json({ ok: false, error: 'نام را وارد کنید.' }, 400);
+  await c.env.DB.prepare('UPDATE users SET name = ? WHERE id = ?').bind(name, session.uid).run();
+  return c.json({ ok: true, name });
+});
+
+app.post('/api/account/password', async c => {
+  const session = c.get('userSession');
+  const body = (await c.req.json().catch(() => ({}))) as { current?: string; next?: string };
+  const next = body.next ?? '';
+  if (next.length < 8) return c.json({ ok: false, error: 'رمز تازه باید دستکم ۸ کاراکتر باشد.' }, 400);
+
+  const user = await db.findUserById(c.env, session.uid);
+  if (!user) return c.json({ ok: false, error: 'حساب پیدا نشد.' }, 401);
+
+  if (user.password_hash) {
+    const ok = await verifyPassword(body.current ?? '', user.password_hash);
+    if (!ok) return c.json({ ok: false, error: 'رمز فعلی درست نیست.' }, 401);
+  }
+  // Google-only accounts may set a first password without current password.
+  await db.setUserPassword(c.env, user.id, await hashPassword(next));
+  return c.json({ ok: true });
+});
+
+app.post('/api/account/orders/:id/cancel', async c => {
+  const session = c.get('userSession');
+  const ok = await db.cancelPendingOrder(c.env, session.uid, c.req.param('id'));
+  return ok ? c.json({ ok: true }) : c.json({ ok: false, error: 'سفارش قابل لغو نیست.' }, 400);
+});
+
+// ---------------------------------------------------------------------
+// @@@ Google OAuth (Sign in with Google)
+// ---------------------------------------------------------------------
+
+app.get('/oauth/google/start', async c => {
+  if (!c.env.GOOGLE_CLIENT_ID || !c.env.GOOGLE_CLIENT_SECRET) return c.redirect('/?error=google-not-configured');
+  const state = randomToken(24);
+  await db.putOAuthState(c.env, state);
+  const redirectUri = `${originOf(c).replace(/\/+$/, '')}/oauth/google/callback`;
+  const url = new URL('https://accounts.google.com/o/oauth2/v2/auth');
+  url.searchParams.set('client_id', c.env.GOOGLE_CLIENT_ID);
+  url.searchParams.set('redirect_uri', redirectUri);
+  url.searchParams.set('response_type', 'code');
+  url.searchParams.set('scope', 'openid email profile');
+  url.searchParams.set('state', state);
+  url.searchParams.set('prompt', 'select_account');
+  return c.redirect(url.toString());
+});
+
+app.get('/oauth/google/callback', async c => {
+  const query = new URL(c.req.url).searchParams;
+  const code = query.get('code');
+  const state = query.get('state');
+  if (query.get('error')) return c.redirect(`/?error=${encodeURIComponent((query.get('error_description') ?? query.get('error') ?? '').slice(0, 120))}`);
+  if (!code || !state) return c.redirect('/?error=missing-code');
+  if (!(await db.consumeOAuthState(c.env, state))) return c.redirect('/?error=invalid-state');
+
+  if (!c.env.GOOGLE_CLIENT_ID || !c.env.GOOGLE_CLIENT_SECRET) return c.redirect('/?error=google-not-configured');
+
+  const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      code,
+      client_id: c.env.GOOGLE_CLIENT_ID,
+      client_secret: c.env.GOOGLE_CLIENT_SECRET,
+      redirect_uri: `${originOf(c).replace(/\/+$/, '')}/oauth/google/callback`,
+      grant_type: 'authorization_code'
+    })
+  });
+  const tokenPayload = (await tokenRes.json().catch(() => ({}))) as { access_token?: string; error?: string };
+  if (!tokenRes.ok || !tokenPayload.access_token) return c.redirect('/?error=google-token-failed');
+
+  const infoRes = await fetch('https://openidconnect.googleapis.com/v1/userinfo', {
+    headers: { authorization: `Bearer ${tokenPayload.access_token}` }
+  });
+  const info = (await infoRes.json().catch(() => ({}))) as {
+    sub?: string;
+    email?: string;
+    email_verified?: boolean;
+    name?: string;
+    picture?: string;
+  };
+  if (!infoRes.ok || !info.sub || !info.email || info.email_verified === false) return c.redirect('/?error=google-profile-failed');
+
+  const user = await db.upsertAccount(c.env, {
+    email: info.email.toLowerCase(),
+    name: (info.name ?? '').slice(0, 80),
+    passwordHash: null,
+    googleSub: info.sub,
+    avatarUrl: (info.picture ?? '').slice(0, 400)
+  });
+  await createUserSession(c, { id: user.id, email: user.email, name: user.name });
+  return c.redirect('/dashboard');
 });
 
 // ---------------------------------------------------------------------
@@ -76,6 +382,9 @@ app.get('/api/setup/status', async c => {
 // ---------------------------------------------------------------------
 
 app.post('/api/admin/login', async c => {
+  if (!rateLimitOk(clientIp(c), 'admin-login', 5, 15 * 60_000)) {
+    return c.json({ ok: false, error: 'تعداد تلاش زیاد است؛ ۱۵ دقیقه دیگر تلاش کنید.' }, 429);
+  }
   const body = (await c.req.json().catch(() => ({}))) as { key?: string };
   const provided = (body.key ?? '').trim();
   if (!provided) return c.json({ ok: false, error: 'کلید را وارد کنید.' }, 400);
@@ -335,6 +644,36 @@ app.get('/api/admin/stats', async c => {
   return c.json({ ok: true, stats, today: todayKey() });
 });
 
+app.get('/api/admin/orders', async c => {
+  const orders = await db.listAllOrders(c.env);
+  return c.json({
+    ok: true,
+    orders: orders.map(o => ({
+      id: o.id,
+      userId: o.user_id,
+      userEmail: o.user_email,
+      userName: o.user_name,
+      planId: o.plan_id,
+      planName: planById(o.plan_id)?.name ?? o.plan_id,
+      status: o.status,
+      amount: o.amount,
+      period: o.period,
+      createdAt: o.created_at,
+      decidedAt: o.decided_at
+    }))
+  });
+});
+
+app.post('/api/admin/orders/:id/decide', async c => {
+  const body = (await c.req.json().catch(() => ({}))) as { status?: string };
+  if (body.status !== 'active' && body.status !== 'rejected') {
+    return c.json({ ok: false, error: 'وضعیت نامعتبر است.' }, 400);
+  }
+  const updated = await db.decideOrder(c.env, c.req.param('id'), body.status);
+  if (!updated) return c.json({ ok: false, error: 'سفارش پیدا نشد.' }, 404);
+  return c.json({ ok: true, status: updated.status });
+});
+
 // ---------------------------------------------------------------------
 // @@@ CUSTOMER: Instagram OAuth (official login; no password ever reaches us)
 // ---------------------------------------------------------------------
@@ -370,12 +709,23 @@ app.get('/oauth/instagram/callback', async c => {
   }
 
   const tokenEncrypted = await sealJson(c.env, { token: completion.token });
+  const accountSession = await readUserSession(c);
+  if (accountSession && !(await db.findTenantByIgId(c.env, completion.igUserId))) {
+    // New page for this account: enforce the plan's page limit.
+    const planId = await db.userPlanPlanId(c.env, accountSession.uid);
+    const plan = planById(planId);
+    const connected = await db.countTenantsOfUser(c.env, accountSession.uid);
+    if (plan && connected >= plan.pages) {
+      return c.redirect(`/?error=${encodeURIComponent(`plan-page-limit:${plan.pages}`)}`);
+    }
+  }
   const tenant = await db.upsertTenant(c.env, {
     igUserId: completion.igUserId,
     username: completion.username,
     tokenEncrypted,
     tokenExpiresAt: completion.tokenExpiresAt,
-    subscribed: completion.subscribed
+    subscribed: completion.subscribed,
+    userId: accountSession?.uid ?? null
   });
   if (!tenant) return c.redirect('/?error=tenant-failed');
 
@@ -437,6 +787,16 @@ app.put('/api/tenant/settings', async c => {
   const body = (await c.req.json().catch(() => ({}))) as { settings?: Partial<TenantSettings> };
   const current = parseTenantSettings(tenant.settings_json);
   const normalized = normalizeTenantSettings({ ...current, ...body.settings });
+
+  // Plan cap: linked accounts may only hold what their tier allows.
+  if (tenant.user_id) {
+    const plan = planById(await db.userPlanPlanId(c.env, tenant.user_id));
+    if (plan) {
+      normalized.qaTraining = normalized.qaTraining.slice(0, plan.qaItems);
+      normalized.knowledge = normalized.knowledge.slice(0, plan.knowledgeItems);
+    }
+  }
+
   await db.updateTenantSettingsJson(c.env, session.tid, JSON.stringify(normalized));
   return c.json({ ok: true, settings: normalized });
 });

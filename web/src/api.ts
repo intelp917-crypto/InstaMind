@@ -104,10 +104,18 @@ export interface KnowledgeItem {
   enabled: boolean;
 }
 
+export interface QaItem {
+  id: string;
+  question: string;
+  answer: string;
+  enabled: boolean;
+}
+
 export interface TenantSettings {
   persona: PersonaConfig;
   guardrails: GuardrailConfig;
   knowledge: KnowledgeItem[];
+  qaTraining: QaItem[];
 }
 
 export interface TenantStats {
@@ -150,4 +158,70 @@ export interface AdminMeta {
   redirectUri: string;
   webhookUrl: string;
   generatedRedirectUri: string;
+}
+
+// ---------------- account (Google / email-password) shapes ----------------
+
+export interface PlanInfo {
+  id: string;
+  name: string;
+  tagline: string;
+  monthlyPrice: number;
+  pages: number;
+  dailyReplies: number;
+  hourlyReplies: number;
+  qaItems: number;
+  knowledgeItems: number;
+  aiTier: string;
+  support: string;
+  features: string[];
+  popular?: boolean;
+}
+
+export interface OrderInfo {
+  id: string;
+  planId: string;
+  status: 'pending' | 'active' | 'rejected' | 'cancelled';
+  amount: number;
+  period: string;
+  createdAt: number;
+  decidedAt: number | null;
+}
+
+export interface AccountMe {
+  ok: boolean;
+  user: {
+    id: string;
+    email: string;
+    name: string;
+    avatarUrl: string;
+    planId: string | null;
+    planName: string | null;
+    googleLinked: boolean;
+    createdAt: number;
+  };
+  instagram: { connected: boolean; username?: string; igUserId?: string; autoReply?: boolean };
+  usage: {
+    repliesToday: number;
+    tokensToday: number;
+    repliesTotal: number;
+    tokensTotal: number;
+    dailyReplyLimit: number;
+    autoReply: boolean;
+  } | null;
+  orders: OrderInfo[];
+}
+
+export interface AdminOrder {
+  id: string;
+  userId: string;
+  userEmail: string | null;
+  userName: string | null;
+  planId: string;
+  planName: string;
+  status: 'pending' | 'active' | 'rejected' | 'cancelled';
+  amount: number;
+  period: string;
+  createdAt: number;
+  decidedAt: number | null;
 }

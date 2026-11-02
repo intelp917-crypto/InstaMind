@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import SpotlightCard from '../bits/SpotlightCard/SpotlightCard';
-import { api, type KnowledgeItem, type TenantSettings } from '../api';
+import { api, type KnowledgeItem, type QaItem, type TenantSettings } from '../api';
 import TagListEditor from '../components/TagListEditor';
 import './AssistantPage.css';
 
@@ -28,7 +28,8 @@ const FALLBACK: Draft = {
     errorReply: '',
     extraRules: ''
   },
-  knowledge: []
+  knowledge: [],
+  qaTraining: []
 };
 
 export default function AssistantPage() {
@@ -269,6 +270,11 @@ export default function AssistantPage() {
           items={draft.knowledge}
           onChange={items => setDraft(d => ({ ...d, knowledge: items }))}
         />
+
+        <QaTrainingEditor
+          items={draft.qaTraining ?? []}
+          onChange={items => setDraft(d => ({ ...d, qaTraining: items }))}
+        />
       </div>
 
       {promptOpen && (
@@ -311,6 +317,80 @@ export function Toggle({
     >
       <span className="toggle-knob" />
     </button>
+  );
+}
+
+function QaTrainingEditor({
+  items,
+  onChange
+}: {
+  items: QaItem[];
+  onChange: (items: QaItem[]) => void;
+}) {
+  return (
+    <SpotlightCard className="im-card spot" spotlightColor="rgba(90,95,105,0.14)" theme="light">
+      <div className="im-toolbar-row">
+        <div className="im-section-title">
+          آموزش پرسش‌وپاسخ — سؤال را بده، جواب دقیقش را یادش بده
+        </div>
+        <button
+          className="im-btn small"
+          onClick={() =>
+            onChange([
+              ...items,
+              { id: `${Date.now()}${items.length}`, question: '', answer: '', enabled: true }
+            ])
+          }
+        >
+          + افزودن جفت
+        </button>
+      </div>
+
+      {items.length === 0 && (
+        <div className="im-empty" style={{ padding: '20px 0' }}>
+          خالی است. هر سؤالی که مشتری‌ها زیاد می‌پرسند را با جوابش ثبت کن؛ دستیار آن را (حتی با صورتک‌بندی متفاوت) دقیق جواب می‌دهد.
+        </div>
+      )}
+
+      <div className="knowledge-list">
+        {items.map((item, index) => (
+          <div key={item.id} className="knowledge-row">
+            <input
+              className="im-input"
+              placeholder="سؤال (مثلا: ارسال چند روزه است؟)"
+              value={item.question}
+              onChange={e =>
+                onChange(items.map((it, i) => (i === index ? { ...it, question: e.target.value } : it)))
+              }
+            />
+            <textarea
+              className="im-textarea"
+              placeholder="جواب دقیق — همین پاسخ با کمترین تغییر ارسال می‌شود"
+              value={item.answer}
+              onChange={e =>
+                onChange(
+                  items.map((it, i) => (i === index ? { ...it, answer: e.target.value } : it))
+                )
+              }
+            />
+            <div className="knowledge-actions">
+              <Toggle
+                checked={item.enabled}
+                onChange={v =>
+                  onChange(items.map((it, i) => (i === index ? { ...it, enabled: v } : it)))
+                }
+              />
+              <button
+                className="im-btn small danger"
+                onClick={() => onChange(items.filter((_, i) => i !== index))}
+              >
+                حذف
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </SpotlightCard>
   );
 }
 

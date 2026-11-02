@@ -1,0 +1,25 @@
+# Copy this file to .dev.vars (local dev only — never commit the real one).
+# In production the same names go to Sites → Secrets.
+
+# --- required (the app fails to start its secret handling without these) ---
+ADMIN_KEY=<random string; login key for /admin panel>
+ENCRYPTION_KEY=<64 hex chars = 32 bytes; AES-256-GCM key for secrets in D1>
+SESSION_SECRET=<random string; HMAC key for session cookies>
+
+# --- Instagram automation (Meta app) — configure from the admin panel UI ---
+# App ID / App Secret / Verify token are stored in D1 by the admin panel.
+# This file needs nothing extra for Meta.
+
+# --- AI provider (the model engine; owner adds later) ---
+# Either set these or configure the provider from the admin panel (takes precedence).
+OPENAI_API_KEY=<any OpenAI-compatible key (freebuff API, OpenAI, ...)>
+OPENAI_BASE_URL=https://api.openai.com/v1
+OPENAI_MODEL=gpt-4o-mini
+
+# --- Sign in with Google ---
+# OAuth client (type: Web application). Authorized redirect URI:
+#   http://localhost:8787/oauth/google/callback            (local dev)
+#   https://<your-domain>/oauth/google/callback            (production)
+# Leave both empty to disable the Google button (email/password still works).
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=

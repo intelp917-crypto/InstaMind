@@ -1,5 +1,6 @@
-import type { Env, AiProviderConfig, MetaAppConfig, TenantRow, ConversationRow, MessageRow, Direction } from './types';
+import type { Env, AiProviderConfig, MetaAppConfig, SubscriptionOrderRow, TenantRow, UserRow, ConversationRow, MessageRow, Direction } from './types';
 import { defaultTenantSettings } from './tenant';
+import { planById } from './plans';
 import { sealJson, openJson, uid } from './crypto';
 
 // --------------------------------------------------------------------------
@@ -61,13 +62,50 @@ export function ensureSchema(env: Env): Promise<void> {
       env.DB.prepare(`CREATE TABLE IF NOT EXISTS oauth_states (
         state TEXT PRIMARY KEY,
         created_at INTEGER NOT NULL
-      )`)
+      )`),
+      env.DB.prepare(`CREATE TABLE IF NOT EXISTS users (
+        id TEXT PRIMARY KEY,
+        email TEXT NOT NULL UNIQUE,
+        name TEXT NOT NULL DEFAULT '',
+        password_hash TEXT,
+        google_sub TEXT UNIQUE,
+        avatar_url TEXT NOT NULL DEFAULT '',
+        plan_id TEXT,
+        created_at INTEGER NOT NULL,
+        last_login_at INTEGER NOT NULL
+      )`),
+      env.DB.prepare(`CREATE TABLE IF NOT EXISTS subscription_orders (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        plan_id TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending',
+        period TEXT NOT NULL DEFAULT 'monthly',
+        amount INTEGER NOT NULL,
+        created_at INTEGER NOT NULL,
+        decided_at INTEGER
+      )`),
+      env.DB.prepare(`CREATE INDEX IF NOT EXISTS idx_orders_user ON subscription_orders (user_id, created_at)`),
+      env.DB.prepare(`CREATE INDEX IF NOT EXISTS idx_users_google ON users (google_sub)`)
     ]).then(() => undefined);
-    schemaPromise.catch(() => {
+    schemaPromise    .then(async () => {
+      // opportunistic migration for databases created before account linking
+      await linkTenantsColumn(env);
+    })
+    .catch(() => {
       schemaPromise = null;
     });
   }
   return schemaPromise;
+}
+
+let linkTenantsPromise: Promise<void> | null = null;
+
+function linkTenantsColumn(env: Env): Promise<void> {
+  linkTenantsPromise ??= env.DB.prepare('ALTER TABLE tenants ADD COLUMN user_id TEXT')
+    .run()
+    .then(() => undefined)
+    .catch(() => undefined); // column already exists
+  return linkTenantsPromise;
 }
 
 // --------------------------------------------------------------------------
@@ -144,6 +182,8 @@ export interface UpsertTenantInput {
   tokenEncrypted: string;
   tokenExpiresAt: number | null;
   subscribed: boolean;
+  /** Account (Google/email) to link this Instagram page to, when set. */
+  userId?: string | null;
 }
 
 /** One tenant per Instagram account. Re-connects refresh token + username. */
@@ -152,17 +192,25 @@ export async function upsertTenant(env: Env, input: UpsertTenantInput): Promise<
   const existing = await findTenantByIgId(env, input.igUserId);
   if (existing) {
     await env.DB.prepare(
-      `UPDATE tenants SET username = ?, token_encrypted = ?, token_expires_at = ?, subscribed = ?, last_login_at = ?
+      `UPDATE tenants SET username = ?, token_encrypted = ?, token_expires_at = ?, subscribed = ?, user_id = ?, last_login_at = ?
        WHERE id = ?`
     )
-      .bind(input.username, input.tokenEncrypted, input.tokenExpiresAt, input.subscribed ? 1 : 0, now, existing.id)
+      .bind(
+        input.username,
+        input.tokenEncrypted,
+        input.tokenExpiresAt,
+        input.subscribed ? 1 : 0,
+        input.userId ?? existing.user_id,
+        now,
+        existing.id
+      )
       .run();
   } else {
     await env.DB.prepare(
       `INSERT INTO tenants
-         (id, ig_user_id, username, token_encrypted, token_expires_at, subscribed, auto_reply, daily_reply_limit,
+         (id, ig_user_id, username, token_encrypted, token_expires_at, subscribed, user_id, auto_reply, daily_reply_limit,
           usage_date, replies_today, tokens_today, tokens_total, replies_total, settings_json, created_at, last_login_at)
-       VALUES (?, ?, ?, ?, ?, ?, 1, 0, '', 0, 0, 0, 0, ?, ?, ?)`
+       VALUES (?, ?, ?, ?, ?, ?, ?, 1, 0, '', 0, 0, 0, 0, ?, ?, ?)`
     )
       .bind(
         uid(),
@@ -171,6 +219,7 @@ export async function upsertTenant(env: Env, input: UpsertTenantInput): Promise<
         input.tokenEncrypted,
         input.tokenExpiresAt,
         input.subscribed ? 1 : 0,
+        input.userId ?? null,
         JSON.stringify(defaultTenantSettings()),
         now,
         now
@@ -373,6 +422,179 @@ export interface GlobalStats {
   conversationCount: number;
   messageCount: number;
   aiReplyCount: number;
+}
+
+// --------------------------------------------------------------------------
+// Accounts (Google / email-password users)
+// --------------------------------------------------------------------------
+
+export async function findUserByEmail(env: Env, email: string): Promise<UserRow | null> {
+  const row = await env.DB.prepare('SELECT * FROM users WHERE email = ?').bind(email).first<UserRow>();
+  return row ?? null;
+}
+
+export async function findUserByGoogleSub(env: Env, googleSub: string): Promise<UserRow | null> {
+  const row = await env.DB.prepare('SELECT * FROM users WHERE google_sub = ?').bind(googleSub).first<UserRow>();
+  return row ?? null;
+}
+
+export async function findUserById(env: Env, id: string): Promise<UserRow | null> {
+  const row = await env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(id).first<UserRow>();
+  return row ?? null;
+}
+
+export interface UpsertUserInput {
+  email: string;
+  name: string;
+  passwordHash: string | null;
+  googleSub: string | null;
+  avatarUrl: string;
+}
+
+/** One account per email; Google sign-in attaches itself to the same email. */
+export async function upsertAccount(env: Env, input: UpsertUserInput): Promise<UserRow> {
+  const now = Date.now();
+  const existing = await findUserByEmail(env, input.email);
+  if (existing) {
+    const googleSub = input.googleSub ?? existing.google_sub;
+    const name = input.name.trim() || existing.name;
+    const avatarUrl = input.avatarUrl || existing.avatar_url;
+    await env.DB.prepare(
+      'UPDATE users SET google_sub = ?, name = ?, avatar_url = ?, last_login_at = ? WHERE id = ?'
+    )
+      .bind(googleSub, name, avatarUrl, now, existing.id)
+      .run();
+  } else {
+    await env.DB.prepare(
+      'INSERT INTO users (id, email, name, password_hash, google_sub, avatar_url, plan_id, created_at, last_login_at) VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?)'
+    )
+      .bind(uid(), input.email, input.name, input.passwordHash, input.googleSub, input.avatarUrl, now, now)
+      .run();
+  }
+  const user = (input.googleSub ? await findUserByGoogleSub(env, input.googleSub) : null) ?? (await findUserByEmail(env, input.email));
+  if (!user) throw new Error('user-upsert-failed');
+  return user;
+}
+
+export async function setUserPassword(env: Env, userId: string, passwordHash: string): Promise<void> {
+  await env.DB.prepare('UPDATE users SET password_hash = ? WHERE id = ?').bind(passwordHash, userId).run();
+}
+
+export async function countTenantsOfUser(env: Env, userId: string): Promise<number> {
+  const row = await env.DB.prepare('SELECT COUNT(*) AS n FROM tenants WHERE user_id = ?')
+    .bind(userId)
+    .first<{ n: number }>();
+  return row?.n ?? 0;
+}
+
+/** Active plan of an account (via users.plan_id) or null when none. */
+export async function userPlanPlanId(env: Env, userId: string): Promise<string | null> {
+  const row = await env.DB.prepare('SELECT plan_id FROM users WHERE id = ?').bind(userId).first<{ plan_id: string | null }>();
+  return row?.plan_id ?? null;
+}
+
+export async function tenantOfUser(env: Env, userId: string): Promise<TenantRow | null> {
+  const row = await env.DB.prepare('SELECT * FROM tenants WHERE user_id = ? ORDER BY created_at DESC LIMIT 1')
+    .bind(userId)
+    .first<TenantRow>();
+  return row ?? null;
+}
+
+// --------------------------------------------------------------------------
+// Subscription orders
+// --------------------------------------------------------------------------
+
+export async function createOrder(env: Env, userId: string, planId: string): Promise<SubscriptionOrderRow> {
+  const plan = planById(planId);
+  if (!plan) throw new Error('unknown-plan');
+  const now = Date.now();
+  const row: SubscriptionOrderRow = {
+    id: uid(),
+    user_id: userId,
+    plan_id: plan.id,
+    status: 'pending',
+    period: 'monthly',
+    amount: plan.monthlyPrice,
+    created_at: now,
+    decided_at: null
+  };
+  await env.DB.prepare(
+    'INSERT INTO subscription_orders (id, user_id, plan_id, status, period, amount, created_at, decided_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+  )
+    .bind(row.id, row.user_id, row.plan_id, row.status, row.period, row.amount, row.created_at, row.decided_at)
+    .run();
+  return row;
+}
+
+export async function findPendingOrder(env: Env, userId: string, planId: string): Promise<SubscriptionOrderRow | null> {
+  const row = await env.DB.prepare(
+    "SELECT * FROM subscription_orders WHERE user_id = ? AND plan_id = ? AND status = 'pending' ORDER BY created_at DESC LIMIT 1"
+  )
+    .bind(userId, planId)
+    .first<SubscriptionOrderRow>();
+  return row ?? null;
+}
+
+export async function getOrder(env: Env, orderId: string): Promise<SubscriptionOrderRow | null> {
+  const row = await env.DB.prepare('SELECT * FROM subscription_orders WHERE id = ?').bind(orderId).first<SubscriptionOrderRow>();
+  return row ?? null;
+}
+
+export async function listOrdersOfUser(env: Env, userId: string): Promise<SubscriptionOrderRow[]> {
+  const { results } = await env.DB.prepare(
+    'SELECT * FROM subscription_orders WHERE user_id = ? ORDER BY created_at DESC LIMIT 50'
+  )
+    .bind(userId)
+    .all<SubscriptionOrderRow>();
+  return results;
+}
+
+export interface OrderWithMeta extends SubscriptionOrderRow {
+  user_email: string | null;
+  user_name: string | null;
+}
+
+export async function listAllOrders(env: Env): Promise<OrderWithMeta[]> {
+  const { results } = await env.DB.prepare(
+    `SELECT o.*, u.email AS user_email, u.name AS user_name
+     FROM subscription_orders o LEFT JOIN users u ON u.id = o.user_id
+     ORDER BY o.created_at DESC LIMIT 200`
+  ).all<OrderWithMeta>();
+  return results;
+}
+
+/** Approve/reject an order. Approving sets the user's plan and applies plan limits to the linked Instagram page. */
+export async function decideOrder(env: Env, orderId: string, status: 'active' | 'rejected'): Promise<SubscriptionOrderRow | null> {
+  const order = await getOrder(env, orderId);
+  if (!order) return null;
+  if (order.status !== 'pending') return order;
+  await env.DB.prepare('UPDATE subscription_orders SET status = ?, decided_at = ? WHERE id = ?')
+    .bind(status, Date.now(), orderId)
+    .run();
+  if (status === 'active') {
+    const plan = planById(order.plan_id);
+    await env.DB.prepare('UPDATE users SET plan_id = ? WHERE id = ?').bind(order.plan_id, order.user_id).run();
+    if (plan) {
+      // Applies plan limits to the linked Instagram pages. The `subscribed` flag
+      // stays untouched: it means "Meta webhook subscription", not plan state.
+      await env.DB.prepare(
+        'UPDATE tenants SET daily_reply_limit = ? WHERE user_id = ?'
+      )
+        .bind(plan.dailyReplies, order.user_id)
+        .run();
+    }
+  }
+  return getOrder(env, orderId);
+}
+
+/** Only pending orders owned by the user can be cancelled. */
+export async function cancelPendingOrder(env: Env, userId: string, orderId: string): Promise<boolean> {
+  const result = await env.DB.prepare(
+    "UPDATE subscription_orders SET status = 'cancelled', decided_at = ? WHERE id = ? AND user_id = ? AND status = 'pending'"
+  )
+    .bind(Date.now(), orderId, userId)
+    .run();
+  return (result.meta.changes ?? 0) > 0;
 }
 
 export async function globalStats(env: Env): Promise<GlobalStats> {

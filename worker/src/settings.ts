@@ -1,4 +1,4 @@
-import type { GuardrailConfig, PersonaConfig, TenantSettings } from './types';
+import type { GuardrailConfig, PersonaConfig, QaItem, TenantSettings } from './types';
 
 export function defaultPersona(): PersonaConfig {
   return {
@@ -71,7 +71,7 @@ export function normalizeGuardrails(input: Partial<GuardrailConfig> | undefined)
 export function normalizeKnowledge(input: unknown): TenantSettings['knowledge'] {
   if (!Array.isArray(input)) return [];
   return input
-    .slice(0, 60)
+    .slice(0, 1000)
     .map(item => (typeof item === 'string' ? { title: '', content: item, enabled: true } : item))
     .filter(item => item && typeof item === 'object' && String((item as { content?: string }).content ?? '').trim())
     .map((item, index) => ({
@@ -82,11 +82,25 @@ export function normalizeKnowledge(input: unknown): TenantSettings['knowledge'] 
     }));
 }
 
+export function normalizeQaTraining(input: unknown): QaItem[] {
+  if (!Array.isArray(input)) return [];
+  return input
+    .slice(0, 1000)
+    .filter(item => item && typeof item === 'object' && String((item as { question?: string }).question ?? '').trim())
+    .map((item, index) => ({
+      id: String((item as { id?: string }).id || `qa${Date.now().toString(36)}${index}`),
+      question: String((item as { question?: string }).question ?? '').slice(0, 500),
+      answer: String((item as { answer?: string }).answer ?? '').slice(0, 2000),
+      enabled: (item as { enabled?: boolean }).enabled !== false
+    }));
+}
+
 export function normalizeTenantSettings(input: Partial<TenantSettings> | undefined): TenantSettings {
   const s = input ?? {};
   return {
     persona: normalizePersona(s.persona),
     guardrails: normalizeGuardrails(s.guardrails),
-    knowledge: normalizeKnowledge(s.knowledge)
+    knowledge: normalizeKnowledge(s.knowledge),
+    qaTraining: normalizeQaTraining(s.qaTraining)
   };
 }

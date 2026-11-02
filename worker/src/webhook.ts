@@ -103,6 +103,15 @@ async function processMessage(env: Env, message: ParsedMessage): Promise<void> {
     return;
   }
 
+  // Paywall: accounts (Google/email) must hold an active plan. Instagram-only
+  // tenants created before the account system keep working unchanged.
+  const planId = tenant.user_id ? await db.userPlanPlanId(env, tenant.user_id) : 'legacy';
+  if (planId === null) {
+    await db.insertMessage(env, tenant.id, conversation.id, 'out', 'system', '', 'blocked:برای پاسخ هوشمند، اشتراک فعال لازم است');
+    return;
+  }
+  void planId;
+
   // ---- guardrail + AI pipeline --------------------------------------------
   const history: AiMessage[] = (await db.recentHistory(env, conversation.id, 10))
     .filter(m => m.text)
