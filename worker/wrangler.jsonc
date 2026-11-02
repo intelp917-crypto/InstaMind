@@ -1,0 +1,25 @@
+{
+  // Local development config only. Production uses the Freebuff Sites deployer.
+  "name": "instamind",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "instamind",
+      "database_id": "local"
+    }
+  ],
+  "assets": {
+    "directory": "../web/dist",
+    "binding": "ASSETS"
+  },
+  "vars": {
+    "APP_ORIGIN": "http://localhost:8787"
+  }
+  // Secrets for local dev live in .dev.vars:
+  //   ADMIN_KEY=dev-admin-key
+  //   ENCRYPTION_KEY=<64 hex chars>
+  //   SESSION_SECRET=<random string>
+}

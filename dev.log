@@ -1,0 +1,62 @@
+
+ ⛅️ wrangler 4.156.1
+────────────────────
+Using secrets defined in .dev.vars
+Your Worker has access to the following bindings:
+Binding                                           Resource                  Mode
+env.DB (instamind)                                D1 Database               local
+env.ASSETS                                        Assets                    local
+env.APP_ORIGIN ("http://localhost:8787")          Environment Variable      local
+env.ADMIN_KEY ("(hidden)")                        Environment Variable      local
+env.ENCRYPTION_KEY ("(hidden)")                   Environment Variable      local
+env.SESSION_SECRET ("(hidden)")                   Environment Variable      local
+
+⎔ Starting local server...
+[wrangler:info] Ready on http://127.0.0.1:8787
+[wrangler:info] GET /api/health 200 OK (82ms)
+[wrangler:info] GET /api/setup/status 200 OK (20ms)
+[wrangler:info] POST /api/admin/login 200 OK (16ms)
+[wrangler:info] GET /api/admin/session 200 OK (13ms)
+[wrangler:info] POST /api/admin/login 401 Unauthorized (13ms)
+[wrangler:info] GET / 200 OK (37ms)
+[wrangler:info] GET /favicon.svg 200 OK (25ms)
+[wrangler:info] GET /api/admin/session 200 OK (14ms)
+[wrangler:info] PUT /api/admin/meta 200 OK (31ms)
+[wrangler:info] GET /api/admin/meta 200 OK (20ms)
+[wrangler:info] PUT /api/admin/provider 200 OK (27ms)
+[wrangler:info] GET /api/admin/tenants 200 OK (16ms)
+[wrangler:info] GET /api/tenant/conversations 401 Unauthorized (13ms)
+[wrangler:info] GET /webhook/instagram 403 Forbidden (19ms)
+[wrangler:info] GET /api/admin/meta 200 OK (26ms)
+[wrangler:info] GET /webhook/instagram 200 OK (15ms)
+[wrangler:info] POST /webhook/instagram 200 OK (34ms)
+[33m▲ [43;33m[[43;30mWARNING[43;33m][0m [1mWebhook signature rejected[0m
+
+
+[wrangler:info] POST /webhook/instagram 401 Unauthorized (34ms)
+[wrangler:info] GET /api/admin/tenants 200 OK (14ms)
+[wrangler:info] GET /api/me 200 OK (30ms)
+[wrangler:info] GET /api/tenant/conversations 200 OK (19ms)
+[wrangler:info] GET /api/tenant/stats 200 OK (24ms)
+[wrangler:info] POST /webhook/instagram 200 OK (73ms)
+[31mX [41;31m[[41;97mERROR[41;31m][0m [1msend failed: Invalid OAuth access token - Cannot parse access token[0m
+
+
+[wrangler:info] GET /api/tenant/conversations 200 OK (32ms)
+[wrangler:info] PUT /api/tenant/settings 200 OK (121ms)
+[wrangler:info] GET /api/tenant/stats 200 OK (41ms)
+[wrangler:info] GET /api/admin/session 200 OK (15ms)
+[wrangler:info] GET /api/tenant/prompt 200 OK (26ms)
+[wrangler:info] GET /api/admin/stats 200 OK (45ms)
+[wrangler:info] PUT /api/tenant/settings 200 OK (31ms)
+[wrangler:info] GET /api/me 200 OK (17ms)
+[wrangler:info] GET /api/me 200 OK (14ms)
+[wrangler:info] GET /api/setup/status 200 OK (28ms)
+[wrangler:info] GET /api/setup/status 200 OK (39ms)
+[wrangler:info] GET /api/me 200 OK (420ms)
+[wrangler:info] GET /api/me 200 OK (535ms)
+[wrangler:info] GET /api/setup/status 200 OK (1290ms)
+[wrangler:info] GET /api/setup/status 200 OK (1360ms)
+[wrangler:info] GET /oauth/instagram/start 302 Found (1726ms)
+[wrangler:info] GET /api/setup/status 200 OK (55ms)
+[wrangler:info] GET /api/setup/status 200 OK (53ms)
